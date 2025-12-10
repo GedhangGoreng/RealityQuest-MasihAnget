@@ -19,18 +19,11 @@ class QuestProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// ✅ FIX CRITICAL: Tambah quest baru + schedule notifikasi smart
   Future<void> addQuest(Quest quest) async {
-    // ✅ PENTING: Save dulu ke Hive biar dapet .key yang unique!
     await _hive.addQuest(quest);
-    
-    // ✅ Reload dari Hive biar dapet quest dengan key yang udah di-assign
     await loadQuests();
     
-    // ✅ Ambil quest yang baru ditambahkan (yang terakhir di list)
     final addedQuest = _quests.last;
-    
-    // ✅ Schedule notifikasi SMART pakai uniqueId
     await _notif.scheduleAllForQuest(
       addedQuest.uniqueId, 
       addedQuest.title, 
@@ -40,10 +33,18 @@ class QuestProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Toggle completion + update coin
+  /// ✅ MODIFIED: Toggle completion cuma bisa kalo belum expired
   Future<void> toggleCompletion(int index) async {
     if (index < 0 || index >= _quests.length) return;
+    
     final quest = _quests[index];
+    
+    // ✅ CEK: Kalo udah expired, gabisa di-toggle sama sekali
+    if (quest.isExpired) {
+      print('⚠️ Quest "${quest.title}" sudah kedaluarsa, tidak bisa diubah!');
+      return;
+    }
+    
     final becameCompleted = !quest.isCompleted;
     quest.isCompleted = becameCompleted;
     
@@ -53,12 +54,9 @@ class QuestProvider with ChangeNotifier {
       await _hive.addCoins(becameCompleted ? quest.rewardCoins : -quest.rewardCoins);
     }
     
-    // ✅ FIX: Pakai uniqueId buat cancel/schedule notifikasi
     if (becameCompleted) {
-      // Cancel semua notifikasi kalau quest selesai
       await _notif.cancelAllForQuest(quest.uniqueId);
     } else {
-      // Re-schedule kalau di-unmark (dibatalin)
       await _notif.scheduleAllForQuest(
         quest.uniqueId, 
         quest.title, 
@@ -69,25 +67,30 @@ class QuestProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// ✅ FIX: Delete quest + cancel notifikasinya pakai uniqueId
   Future<void> deleteQuest(int index) async {
     if (index < 0 || index >= _quests.length) return;
     
     final quest = _quests[index];
-    
-    // ✅ Cancel notifikasi pakai uniqueId SEBELUM delete
     await _notif.cancelAllForQuest(quest.uniqueId);
-    
     await _hive.deleteQuest(index);
     _quests.removeAt(index);
     notifyListeners();
   }
 
-  /// Clear all quests + cancel semua notifikasi
   Future<void> clearAll() async {
     await _notif.cancelAll();
     await _hive.clearQuests();
     _quests.clear();
+    notifyListeners();
+  }
+
+  /// ✅ TAMBAHAN: Helper buat cek ada expired quest
+  int get expiredCount {
+    return _quests.where((quest) => quest.isExpired && !quest.isCompleted).length;
+  }
+
+  /// ✅ TAMBAHAN: Auto-refresh status expired
+  void refreshExpiredStatus() {
     notifyListeners();
   }
 }

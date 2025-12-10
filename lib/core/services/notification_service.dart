@@ -71,7 +71,7 @@ class NotificationService {
     await _notifications.show(
       questId * 100 + 1,
       '⚠️ Deadline Dekat!',
-      'Misi "$questTitle" deadline dalam 30 menit!',
+      'Misi "$questTitle" deadline kurang dari 30 menit!',
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'quest_immediate',

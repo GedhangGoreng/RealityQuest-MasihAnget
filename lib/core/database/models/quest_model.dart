@@ -24,10 +24,12 @@ class Quest extends HiveObject {
     this.rewardCoins = 0,
   });
 
-  // ✅ TAMBAHAN CRITICAL: Helper method untuk dapetin unique ID
+  // ✅ TAMBAHAN: Cek apakah misi sudah lewat deadline
+  bool get isExpired {
+    return DateTime.now().isAfter(deadline);
+  }
+
   int get uniqueId {
-    // Pakai key dari Hive (auto-generated oleh Hive, always unique)
-    // Kalau belum di-save ke Hive, key = null, jadi pakai hashCode sebagai fallback
     return key ?? title.hashCode;
   }
 }

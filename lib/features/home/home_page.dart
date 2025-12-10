@@ -13,14 +13,28 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    // Load quests dari Hive pas pertama kali page dibuka
+    WidgetsBinding.instance.addObserver(this);
+    
     Future.microtask(() {
       Provider.of<QuestProvider>(context, listen: false).loadQuests();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      Provider.of<QuestProvider>(context, listen: false).refreshExpiredStatus();
+    }
   }
 
   void openAddPage() {
@@ -57,6 +71,7 @@ class _HomePageState extends State<HomePage> {
     final questProvider = Provider.of<QuestProvider>(context);
     final missions = questProvider.quests;
     final completed = missions.where((m) => m.isCompleted).length;
+    final expiredCount = questProvider.expiredCount;
 
     return Scaffold(
       appBar: AppBar(
@@ -68,10 +83,38 @@ class _HomePageState extends State<HomePage> {
         children: [
           const SizedBox(height: 12),
           
-          // ✅ PENTING: Coin display baca dari Hive, bukan hitung dari quest!
           CoinDisplay(completed: completed, total: missions.length),
           
-          const SizedBox(height: 12),
+          // ✅ Info misi kedaluarsa
+          if (expiredCount > 0)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.timer_off, color: Colors.grey.shade600, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$expiredCount misi kedaluarsa',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(Icons.info_outline, color: Colors.grey.shade600, size: 16),
+                ],
+              ),
+            ),
+          
+          const SizedBox(height: 6),
           
           ElevatedButton.icon(
             onPressed: openAddPage,
