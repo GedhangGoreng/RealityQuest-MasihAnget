@@ -83,7 +83,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           initial: quest,
           locale: _locale,
           onSave: (newQuest) async {
-            await questProvider.deleteQuest(index);
+            // Cari dan hapus quest lama
+            final oldIndex = questProvider.allQuests.indexWhere((q) => q.key == quest.key || q.title == quest.title);
+            if (oldIndex != -1) {
+              await questProvider.deleteQuest(oldIndex);
+            }
             await questProvider.addQuest(newQuest);
           },
         ),
@@ -91,10 +95,116 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildQuestList() {
+    final questProvider = Provider.of<QuestProvider>(context);
+    final allQuests = questProvider.quests;
+    
+    if (allQuests.isEmpty) {
+      return Center(
+        child: Text(
+          _locale.noMissions,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.grey, fontSize: 16),
+        ),
+      );
+    }
+
+    // Kelompokkan quest
+    final activeQuests = allQuests.where((q) => !q.isCompleted && !q.isExpired).toList();
+    final expiredQuests = allQuests.where((q) => !q.isCompleted && q.isExpired).toList();
+    final completedQuests = allQuests.where((q) => q.isCompleted).toList();
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      children: [
+        if (activeQuests.isNotEmpty) ...[
+          _buildSectionHeader(_locale.activeSection, Colors.blue),
+          ...activeQuests.map((quest) {
+            final index = allQuests.indexOf(quest);
+            return MissionCard(
+              mission: quest,
+              locale: _locale,
+              onDone: () async {
+                await questProvider.toggleCompletion(index);
+              },
+              onFail: () async {
+                if (quest.isCompleted) {
+                  await questProvider.toggleCompletion(index);
+                }
+              },
+              onEdit: () => openEditPage(index),
+              onDelete: () => questProvider.deleteQuest(index),
+            );
+          }).toList(),
+        ],
+        
+        if (expiredQuests.isNotEmpty) ...[
+          _buildSectionHeader(_locale.expiredSection, Colors.red),
+          ...expiredQuests.map((quest) {
+            final index = allQuests.indexOf(quest);
+            return MissionCard(
+              mission: quest,
+              locale: _locale,
+              onDone: () {}, // Disabled untuk expired
+              onFail: () {},
+              onEdit: () => openEditPage(index),
+              onDelete: () => questProvider.deleteQuest(index),
+            );
+          }).toList(),
+        ],
+        
+        if (completedQuests.isNotEmpty) ...[
+          _buildSectionHeader(_locale.completedSection, Colors.green),
+          ...completedQuests.map((quest) {
+            final index = allQuests.indexOf(quest);
+            return MissionCard(
+              mission: quest,
+              locale: _locale,
+              onDone: () async {
+                await questProvider.toggleCompletion(index);
+              },
+              onFail: () async {
+                if (quest.isCompleted) {
+                  await questProvider.toggleCompletion(index);
+                }
+              },
+              onEdit: () => openEditPage(index),
+              onDelete: () => questProvider.deleteQuest(index),
+            );
+          }).toList(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 20,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final questProvider = Provider.of<QuestProvider>(context);
-    final missions = questProvider.quests;
+    final missions = questProvider.allQuests;
     final completed = missions.where((m) => m.isCompleted).length;
     final expiredCount = questProvider.expiredCount;
 
@@ -135,7 +245,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   Icon(Icons.timer_off, color: Colors.grey.shade600, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    '$expiredCount ${_locale.isEnglish ? 'missions expired' : 'misi kedaluarsa'}',
+                    '$expiredCount ${_locale.overdueCount}',
                     style: TextStyle(
                       color: Colors.grey.shade700,
                       fontWeight: FontWeight.w600,
@@ -161,35 +271,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           const SizedBox(height: 8),
           
           Expanded(
-            child: missions.isEmpty
-                ? Center(
-                    child: Text(
-                      _locale.noMissions,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.grey, fontSize: 16),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    itemCount: missions.length,
-                    itemBuilder: (context, index) {
-                      final quest = missions[index];
-                      return MissionCard(
-                        mission: quest,
-                        locale: _locale,
-                        onDone: () async {
-                          await questProvider.toggleCompletion(index);
-                        },
-                        onFail: () async {
-                          if (quest.isCompleted) {
-                            await questProvider.toggleCompletion(index);
-                          }
-                        },
-                        onEdit: () => openEditPage(index),
-                        onDelete: () => questProvider.deleteQuest(index),
-                      );
-                    },
-                  ),
+            child: _buildQuestList(),
           ),
           
           const SizedBox(height: 12),

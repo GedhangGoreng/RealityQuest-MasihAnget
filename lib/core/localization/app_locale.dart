@@ -5,9 +5,9 @@ class AppLocale {
   AppLocale(this.isEnglish);
 
   // === HOME PAGE ===
-  String get appTitle => 'RealityQuest'; // Same for both
+  String get appTitle => 'RealityQuest';
   String get addMission => isEnglish ? 'Add Mission' : 'Tambah Misi';
-  String get spinReward => isEnglish ? 'Spin Reward' : 'Spin Reward';
+  String get spinReward => isEnglish ? 'Spin Reward' : 'Putar Hadiah';
   String get noMissions => isEnglish 
       ? 'No missions yet.\nPress "Add Mission" to start!' 
       : 'Belum ada misi.\nTekan "Tambah Misi" untuk mulai!';
@@ -29,6 +29,7 @@ class AppLocale {
   String get selectTime => isEnglish ? 'Select Time' : 'Pilih Waktu';
   String get reward => isEnglish ? 'Reward' : 'Reward';
   String get saveMission => isEnglish ? 'Save Mission' : 'Simpan Misi';
+  String get oneCoin => isEnglish ? '1 Coin' : '1 Koin';
   
   // === SPIN PAGE ===
   String get spinAndWin => isEnglish ? 'Spin & Win' : 'Spin & Win';
@@ -50,4 +51,9 @@ class AppLocale {
   String get edit => isEnglish ? 'Edit' : 'Edit';
   String get delete => isEnglish ? 'Delete' : 'Hapus';
   String get done => isEnglish ? 'Done' : 'Selesai';
+  
+  // === SECTION HEADERS ===
+  String get activeSection => isEnglish ? 'Active Missions' : 'Misi Aktif';
+  String get expiredSection => isEnglish ? 'Expired Missions' : 'Misi Kedaluarsa';
+  String get completedSection => isEnglish ? 'Completed Missions' : 'Misi Selesai';
 }

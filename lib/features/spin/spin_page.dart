@@ -23,14 +23,13 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
   final List<TextEditingController> _controllers =
       List.generate(_rewardCount, (index) => TextEditingController());
   final List<File?> _images = List.generate(_rewardCount, (index) => null);
-  final List<String> _rewards = List.generate(_rewardCount, (index) => "Hadiah ${index + 1}");
+  final List<String> _rewards = List.generate(_rewardCount, (index) => "");
 
   late AnimationController _controller;
   late Animation<double> _animation;
   double _previousAngle = 0;
   bool _isSpinning = false;
   int _currentCoins = 0;
-  bool _isEnglish = false;
   late AppLocale _locale;
 
   final List<Color> _wheelColors = const [
@@ -50,20 +49,21 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
     _controller = AnimationController(vsync: this, duration: const Duration(seconds: 5));
     _animation = const AlwaysStoppedAnimation(0);
 
-    _loadRewardsFromHive();
     _loadCurrentCoins();
   }
 
   Future<void> _loadLocale() async {
     final isEnglish = await LocalePreference.getIsEnglish();
     setState(() {
-      _isEnglish = isEnglish;
       _locale = AppLocale(isEnglish);
       _rewards[_zonkIndex] = _locale.zonkReward;
       if (_controllers[_zonkIndex].text != _locale.zonkReward) {
         _controllers[_zonkIndex].text = _locale.zonkReward;
       }
     });
+    
+    // Load rewards SETELAH locale siap
+    _loadRewardsFromHive();
   }
 
   Future<void> _loadCurrentCoins() async {
@@ -80,8 +80,43 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
     if (rewards.isNotEmpty) {
       setState(() {
         for (int i = 0; i < _rewardCount && i < rewards.length; i++) {
-          _rewards[i] = rewards[i].name;
-          _controllers[i].text = rewards[i].name;
+          // ✅ TRANSLASI DARI HIVE KE BAHASA SEKARANG
+          String rewardName = rewards[i].name;
+          
+          // Handle ZONK khusus
+          if (rewardName.contains("ZONK") || rewardName == _locale.zonkReward) {
+            _rewards[i] = _locale.zonkReward;
+            _controllers[i].text = _locale.zonkReward;
+          } 
+          // Handle "Hadiah X" -> "Reward X" atau sebaliknya
+          else if (rewardName.startsWith("Hadiah") || rewardName.startsWith("Reward")) {
+            if (_locale.isEnglish && rewardName.startsWith("Hadiah")) {
+              _rewards[i] = rewardName.replaceFirst("Hadiah", "Reward");
+            } else if (!_locale.isEnglish && rewardName.startsWith("Reward")) {
+              _rewards[i] = rewardName.replaceFirst("Reward", "Hadiah");
+            } else {
+              _rewards[i] = rewardName;
+            }
+            _controllers[i].text = _rewards[i];
+          }
+          // Default case
+          else {
+            _rewards[i] = rewardName;
+            _controllers[i].text = rewardName;
+          }
+        }
+      });
+    } else {
+      // Jika Hive kosong, isi dengan default
+      setState(() {
+        for (int i = 0; i < _rewardCount; i++) {
+          if (i == _zonkIndex) {
+            _rewards[i] = _locale.zonkReward;
+            _controllers[i].text = _locale.zonkReward;
+          } else {
+            _rewards[i] = _locale.isEnglish ? "Reward ${i+1}" : "Hadiah ${i+1}";
+            _controllers[i].text = _rewards[i];
+          }
         }
       });
     }
@@ -107,6 +142,7 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _saveRewardsToHive() async {
+    // Simpan dengan nama sesuai bahasa SAAT INI
     for (int i = 0; i < _rewards.length; i++) {
       await _logic.addReward(
         _rewards[i],
@@ -303,7 +339,9 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
                     ),
                     onChanged: (value) {
                       setState(() {
-                        _rewards[index] = value.isEmpty ? "${_locale.rewardItem} ${index + 1}" : value;
+                        _rewards[index] = value.isEmpty 
+                            ? (_locale.isEnglish ? "Reward ${index + 1}" : "Hadiah ${index + 1}") 
+                            : value;
                       });
                     },
                   ),

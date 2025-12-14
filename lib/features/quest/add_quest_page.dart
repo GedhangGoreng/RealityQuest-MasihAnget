@@ -1,18 +1,18 @@
 // lib/features/quest/add_quest_page.dart
 import 'package:flutter/material.dart';
 import '../../core/database/models/quest_model.dart';
-import '../../core/localization/app_locale.dart'; // ✅ IMPORT
+import '../../core/localization/app_locale.dart';
 
 class AddQuestPage extends StatefulWidget {
   final Quest? initial;
   final Function(Quest) onSave;
-  final AppLocale locale; // ✅ TAMBAH PARAMETER
+  final AppLocale locale;
 
   const AddQuestPage({
     super.key, 
     this.initial, 
     required this.onSave,
-    required this.locale, // ✅ REQUIRED
+    required this.locale,
   });
 
   @override
@@ -109,7 +109,6 @@ class _AddQuestPageState extends State<AddQuestPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ===== NAMA MISI =====
             TextField(
               controller: titleController,
               decoration: InputDecoration(
@@ -120,7 +119,6 @@ class _AddQuestPageState extends State<AddQuestPage> {
             ),
             const SizedBox(height: 20),
 
-            // ===== TANGGAL =====
             Text(
               widget.locale.deadlineDate,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -153,7 +151,6 @@ class _AddQuestPageState extends State<AddQuestPage> {
             ),
             const SizedBox(height: 20),
 
-            // ===== WAKTU =====
             Text(
               widget.locale.deadlineTime,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -186,7 +183,6 @@ class _AddQuestPageState extends State<AddQuestPage> {
             ),
             const SizedBox(height: 20),
 
-            // ===== REWARD =====
             Text(
               widget.locale.reward,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -199,20 +195,19 @@ class _AddQuestPageState extends State<AddQuestPage> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey.shade300),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.monetization_on, color: Colors.amber),
-                  SizedBox(width: 8),
+                  const Icon(Icons.monetization_on, color: Colors.amber),
+                  const SizedBox(width: 8),
                   Text(
-                    '1 Koin',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                    widget.locale.oneCoin,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 30),
 
-            // ===== SIMPAN =====
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
