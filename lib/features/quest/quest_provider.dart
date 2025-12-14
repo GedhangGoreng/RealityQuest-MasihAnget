@@ -1,4 +1,5 @@
 // lib/features/quest/quest_provider.dart
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../core/database/hive_service.dart';
 import '../../core/database/models/quest_model.dart';
@@ -8,6 +9,10 @@ class QuestProvider with ChangeNotifier {
   final HiveService _hive = HiveService();
   final NotificationService _notif = NotificationService();
   final List<Quest> _quests = [];
+  Timer? _expiryTimer;
+  
+  // 🔥 FLAG UNTUK CEK APAKAH SUDAH NOTIFY TENTANG EXPIRED QUEST
+  bool _hasExpiredNotified = false;
 
   List<Quest> get quests {
     // Return sorted list: Active -> Expired -> Completed
@@ -34,17 +39,62 @@ class QuestProvider with ChangeNotifier {
   // Getter untuk backward compatibility
   List<Quest> get allQuests => List.unmodifiable(_quests);
 
+  QuestProvider() {
+    // ✅ START TIMER 5 DETIK SAAT PROVIDER DIBUAT
+    _startExpiryTimer();
+  }
+
+  void _startExpiryTimer() {
+    // 🔥 CEK SETIAP 5 DETIK
+    _expiryTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _checkForNewExpiredQuests();
+    });
+    if (kDebugMode) {
+      print('⏰ Expiry timer started (1 aja seconds interval)');
+    }
+  }
+
+  void _checkForNewExpiredQuests() {
+    // Cek apakah ada quest yang expired dan belum completed
+    final hasExpiredNow = _quests.any((quest) => 
+        !quest.isCompleted && quest.isExpired);
+    
+    // 🔥 LOGIC: Hanya trigger notifyListeners() jika STATUS BERUBAH
+    if (hasExpiredNow && !_hasExpiredNotified) {
+      // ADA expired quest DAN BELUM PERNAH DI-NOTIFY
+      if (kDebugMode) {
+        print('🔄 First time expired detection - updating UI');
+      }
+      _hasExpiredNotified = true;
+      notifyListeners();
+    } 
+    else if (!hasExpiredNow && _hasExpiredNotified) {
+      // SEMUA expired quest sudah di-handle (completed atau deleted)
+      // Reset flag untuk next time
+      if (kDebugMode) {
+        print('🔄 All expired quests handled, resetting flag');
+      }
+      _hasExpiredNotified = false;
+    }
+    // Kalau hasExpiredNow == true DAN _hasExpiredNotified == true
+    // -> Sudah di-notify sebelumnya, skip (ga infinite loop)
+  }
+
   Future<void> loadQuests() async {
     final loaded = await _hive.getQuests();
     _quests
       ..clear()
       ..addAll(loaded);
+    
+    // 🔥 RESET FLAG SETIAP LOAD QUESTS
+    _hasExpiredNotified = _quests.any((q) => !q.isCompleted && q.isExpired);
+    
     notifyListeners();
   }
 
   Future<void> addQuest(Quest quest) async {
     await _hive.addQuest(quest);
-    await loadQuests();
+    await loadQuests(); // loadQuests() akan handle flag reset
     
     final addedQuest = _quests.last;
     await _notif.scheduleAllForQuest(
@@ -64,7 +114,9 @@ class QuestProvider with ChangeNotifier {
     final quest = sorted[index];
     
     if (quest.isExpired) {
-      print('⚠️ Quest "${quest.title}" sudah kedaluarsa, tidak bisa diubah!');
+      if (kDebugMode) {
+        print('⚠️ Quest "${quest.title}" sudah kedaluarsa, tidak bisa diubah!');
+      }
       return;
     }
     
@@ -91,6 +143,9 @@ class QuestProvider with ChangeNotifier {
       );
     }
     
+    // 🔥 CEK ULANG STATUS EXPIRED SETELAH TOGGLE
+    _checkForNewExpiredQuests();
+    
     notifyListeners();
   }
 
@@ -109,6 +164,9 @@ class QuestProvider with ChangeNotifier {
     await _hive.deleteQuest(originalIndex);
     _quests.removeAt(originalIndex);
     
+    // 🔥 CEK ULANG STATUS EXPIRED SETELAH DELETE
+    _checkForNewExpiredQuests();
+    
     notifyListeners();
   }
 
@@ -116,6 +174,10 @@ class QuestProvider with ChangeNotifier {
     await _notif.cancelAll();
     await _hive.clearQuests();
     _quests.clear();
+    
+    // 🔥 RESET FLAG
+    _hasExpiredNotified = false;
+    
     notifyListeners();
   }
 
@@ -124,6 +186,18 @@ class QuestProvider with ChangeNotifier {
   }
 
   void refreshExpiredStatus() {
+    // Manual refresh dari UI (seperti dari lifecycle)
+    _checkForNewExpiredQuests();
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    // ⚠️ JANGAN LUPA CANCEL TIMER SAAT PROVIDER DI-DISPOSE
+    _expiryTimer?.cancel();
+    if (kDebugMode) {
+      print('⏰ Expiry timer stopped');
+    }
+    super.dispose();
   }
 }
