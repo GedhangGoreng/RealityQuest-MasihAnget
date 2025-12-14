@@ -1,9 +1,9 @@
-// lib/features/spin/spin_page.dart
 import 'dart:math';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-
+import '../../core/localization/app_locale.dart';
+import '../../core/database/locale_preference.dart';
 import '../../core/utils/spin_logic.dart';
 import '../../core/database/models/reward_model.dart';
 import '../../core/database/hive_service.dart';
@@ -18,7 +18,6 @@ class SpinPage extends StatefulWidget {
 class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin {
   static const int _rewardCount = 5;
   final int _zonkIndex = 0;
-  final String _zonkReward = "ZONK 😭";
   final SpinLogic _logic = SpinLogic();
 
   final List<TextEditingController> _controllers =
@@ -30,9 +29,9 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
   late Animation<double> _animation;
   double _previousAngle = 0;
   bool _isSpinning = false;
-  
-  // ✅ Variable untuk track coin user
   int _currentCoins = 0;
+  bool _isEnglish = false;
+  late AppLocale _locale;
 
   final List<Color> _wheelColors = const [
     Colors.orange,
@@ -46,17 +45,27 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
   @override
   void initState() {
     super.initState();
-    _rewards[_zonkIndex] = _zonkReward;
-    _controllers[_zonkIndex].text = _zonkReward;
-
+    _loadLocale();
+    
     _controller = AnimationController(vsync: this, duration: const Duration(seconds: 5));
     _animation = const AlwaysStoppedAnimation(0);
 
     _loadRewardsFromHive();
-    _loadCurrentCoins(); // ✅ Load coin pas pertama kali
+    _loadCurrentCoins();
   }
 
-  /// ✅ Load coin dari Hive
+  Future<void> _loadLocale() async {
+    final isEnglish = await LocalePreference.getIsEnglish();
+    setState(() {
+      _isEnglish = isEnglish;
+      _locale = AppLocale(isEnglish);
+      _rewards[_zonkIndex] = _locale.zonkReward;
+      if (_controllers[_zonkIndex].text != _locale.zonkReward) {
+        _controllers[_zonkIndex].text = _locale.zonkReward;
+      }
+    });
+  }
+
   Future<void> _loadCurrentCoins() async {
     final user = await HiveService().getUser();
     if (mounted) {
@@ -66,7 +75,6 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
     }
   }
 
-  /// Load data hadiah dari Hive ke UI
   Future<void> _loadRewardsFromHive() async {
     final rewards = await _logic.getRewards();
     if (rewards.isNotEmpty) {
@@ -98,7 +106,6 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
     }
   }
 
-  /// Simpan hadiah yang dikonfigurasi user ke Hive
   Future<void> _saveRewardsToHive() async {
     for (int i = 0; i < _rewards.length; i++) {
       await _logic.addReward(
@@ -108,32 +115,28 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
     }
   }
 
-  /// ✅ FIX: Jalankan spin dengan update koin langsung ke Hive
   Future<void> _startSpin() async {
     if (_isSpinning) return;
 
-    // ✅ CEK KOIN DARI HIVE
     final hive = HiveService();
     final user = await hive.getUser();
     
     if (user.totalCoins < 1) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Koin tidak cukup! Selesaikan misi dulu.'),
+        SnackBar(
+          content: Text(_locale.isEnglish 
+              ? 'Not enough coins! Complete missions first.' 
+              : 'Koin tidak cukup! Selesaikan misi dulu.'),
           backgroundColor: Colors.red,
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 2),
         ),
       );
       return;
     }
 
-    // ✅ SPEND COIN LANGSUNG KE HIVE
     await hive.addCoins(-1);
-    
-    // ✅ UPDATE UI COIN
     await _loadCurrentCoins();
-    
     await _saveRewardsToHive();
     setState(() => _isSpinning = true);
 
@@ -150,7 +153,6 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
         _isSpinning = false;
       });
 
-      // Ambil reward aktual dari Hive logic
       final result = await _logic.spinOnce();
 
       if (result == null) {
@@ -170,16 +172,16 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
       barrierDismissible: false,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          "🎉 Selamat!",
+        title: Text(
+          _locale.congratulations,
           textAlign: TextAlign.center,
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              "Kamu mendapatkan:",
+              _locale.youGot,
               style: TextStyle(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 8),
@@ -206,7 +208,7 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Text("OK"),
+              child: Text(_locale.ok),
             ),
           ),
         ],
@@ -290,7 +292,9 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: isZonk ? Colors.grey.shade200 : Colors.white,
-                      labelText: isZonk ? "**HADIAH PATEN (ZONK)**" : "Hadiah ${index + 1}",
+                      labelText: isZonk 
+                          ? (_locale.isEnglish ? "**FIXED REWARD (ZONK)**" : "**HADIAH PATEN (ZONK)**")
+                          : "${_locale.rewardItem} ${index + 1}",
                       labelStyle: const TextStyle(color: Colors.grey),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -299,7 +303,7 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
                     ),
                     onChanged: (value) {
                       setState(() {
-                        _rewards[index] = value.isEmpty ? "Hadiah ${index + 1}" : value;
+                        _rewards[index] = value.isEmpty ? "${_locale.rewardItem} ${index + 1}" : value;
                       });
                     },
                   ),
@@ -337,7 +341,7 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
       backgroundColor: Colors.blue.shade800,
       appBar: AppBar(
         backgroundColor: Colors.blue.shade900,
-        title: const Text("Spin & Win", style: TextStyle(color: Colors.white)),
+        title: Text(_locale.spinAndWin, style: const TextStyle(color: Colors.white)),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -349,7 +353,6 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
             const Icon(Icons.arrow_drop_up, color: Colors.redAccent, size: 50),
             const SizedBox(height: 10),
             
-            // ✅ FIX: Pakai variable _currentCoins (simple & no error!)
             ElevatedButton(
               onPressed: _currentCoins >= 1 && !_isSpinning ? _startSpin : null,
               style: ElevatedButton.styleFrom(
@@ -361,16 +364,16 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
               ),
               child: Text(
                 _isSpinning
-                    ? "Memutar..."
-                    : "SPIN (Sisa Koin: $_currentCoins)",
+                    ? (_locale.isEnglish ? "Spinning..." : "Memutar...")
+                    : "${_locale.spinReward} (${_locale.isEnglish ? 'Coins left' : 'Sisa Koin'}: $_currentCoins)",
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
             
             const SizedBox(height: 30),
-            const Text(
-              "🎁 Atur Hadiah:",
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              _locale.setRewards,
+              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             _buildRewardInput(),

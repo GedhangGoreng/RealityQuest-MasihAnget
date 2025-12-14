@@ -1,6 +1,8 @@
 // lib/features/home/home_page.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/localization/app_locale.dart';
+import '../../core/database/locale_preference.dart';
 import '../quest/quest_provider.dart';
 import '../quest/add_quest_page.dart';
 import '../spin/spin_page.dart';
@@ -14,10 +16,14 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
+  bool _isEnglish = false;
+  late AppLocale _locale;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _loadLocale();
     
     Future.microtask(() {
       Provider.of<QuestProvider>(context, listen: false).loadQuests();
@@ -28,6 +34,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  Future<void> _loadLocale() async {
+    final isEnglish = await LocalePreference.getIsEnglish();
+    setState(() {
+      _isEnglish = isEnglish;
+      _locale = AppLocale(isEnglish);
+    });
+  }
+
+  Future<void> _toggleLanguage() async {
+    final newValue = !_isEnglish;
+    await LocalePreference.setIsEnglish(newValue);
+    setState(() {
+      _isEnglish = newValue;
+      _locale = AppLocale(newValue);
+    });
   }
 
   @override
@@ -41,6 +64,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AddQuestPage(
+          locale: _locale,
           onSave: (quest) async {
             await Provider.of<QuestProvider>(context, listen: false).addQuest(quest);
           },
@@ -57,6 +81,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       MaterialPageRoute(
         builder: (_) => AddQuestPage(
           initial: quest,
+          locale: _locale,
           onSave: (newQuest) async {
             await questProvider.deleteQuest(index);
             await questProvider.addQuest(newQuest);
@@ -75,9 +100,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('RealityQuest', style: TextStyle(color: Colors.white)),
+        title: Text(_locale.appTitle, style: const TextStyle(color: Colors.white)),
         backgroundColor: Colors.purple,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(
+              _isEnglish ? Icons.language : Icons.translate,
+              color: Colors.white,
+            ),
+            onPressed: _toggleLanguage,
+            tooltip: _isEnglish ? 'Switch to Indonesian' : 'Ganti ke Inggris',
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -85,7 +120,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           
           CoinDisplay(completed: completed, total: missions.length),
           
-          // ✅ Info misi kedaluarsa
           if (expiredCount > 0)
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
@@ -101,15 +135,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   Icon(Icons.timer_off, color: Colors.grey.shade600, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    '$expiredCount misi kedaluarsa',
+                    '$expiredCount ${_locale.isEnglish ? 'missions expired' : 'misi kedaluarsa'}',
                     style: TextStyle(
                       color: Colors.grey.shade700,
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Icon(Icons.info_outline, color: Colors.grey.shade600, size: 16),
                 ],
               ),
             ),
@@ -119,7 +151,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ElevatedButton.icon(
             onPressed: openAddPage,
             icon: const Icon(Icons.add, color: Colors.black),
-            label: const Text('Tambah Misi', style: TextStyle(color: Colors.black)),
+            label: Text(_locale.addMission, style: const TextStyle(color: Colors.black)),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               elevation: 2,
@@ -130,11 +162,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           
           Expanded(
             child: missions.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
-                      'Belum ada misi.\nTekan "Tambah Misi" untuk mulai!',
+                      _locale.noMissions,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey, fontSize: 16),
+                      style: const TextStyle(color: Colors.grey, fontSize: 16),
                     ),
                   )
                 : ListView.builder(
@@ -144,6 +176,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       final quest = missions[index];
                       return MissionCard(
                         mission: quest,
+                        locale: _locale,
                         onDone: () async {
                           await questProvider.toggleCompletion(index);
                         },
@@ -166,7 +199,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             child: ElevatedButton(
               onPressed: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SpinPage()),
+                  MaterialPageRoute(builder: (_) => SpinPage()),
                 );
               },
               style: ElevatedButton.styleFrom(
@@ -178,9 +211,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
                 elevation: 3,
               ),
-              child: const Text(
-                'Spin Reward',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              child: Text(
+                _locale.spinReward,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
             ),
           ),

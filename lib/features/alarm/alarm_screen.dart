@@ -2,15 +2,18 @@
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../../core/localization/app_locale.dart'; // ✅ IMPORT
 
 class AlarmScreen extends StatefulWidget {
   final String questTitle;
   final DateTime deadline;
+  final AppLocale locale; // ✅ TAMBAH PARAMETER
 
   const AlarmScreen({
     super.key,
     required this.questTitle,
     required this.deadline,
+    required this.locale, // ✅ REQUIRED
   });
 
   @override
@@ -27,19 +30,14 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
   void initState() {
     super.initState();
     
-    // ✅ Keep screen on
     WakelockPlus.enable();
-    
-    // ✅ Play alarm sound (looping)
     _playAlarmSound();
     
-    // Animasi pulse
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
     )..repeat(reverse: true);
     
-    // Animasi rotate
     _rotateController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
@@ -48,16 +46,9 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
 
   Future<void> _playAlarmSound() async {
     try {
-      // ✅ PILIHAN 1: Pakai sound dari assets (kalau lo download)
-      // await _audioPlayer.setReleaseMode(ReleaseMode.loop);
-      // await _audioPlayer.setVolume(1.0);
-      // await _audioPlayer.play(AssetSource('sounds/alarm.mp3'));
-      
-      // ✅ PILIHAN 2: Pakai URL sound online (PASTI ADA!)
       await _audioPlayer.setReleaseMode(ReleaseMode.loop);
       await _audioPlayer.setVolume(1.0);
       await _audioPlayer.play(UrlSource('https://www.soundjay.com/phone/sounds/telephone-ring-01a.mp3'));
-      
       print('🔊 Alarm sound playing (looping)!');
     } catch (e) {
       print('❌ Error playing alarm: $e');
@@ -71,7 +62,7 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
     await WakelockPlus.disable();
     
     if (!mounted) return;
-    Navigator.of(context).pop(true); // Return true = alarm stopped
+    Navigator.of(context).pop(true);
   }
 
   @override
@@ -86,7 +77,6 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      // ✅ Prevent back button
       canPop: false,
       child: Scaffold(
         backgroundColor: Colors.red.shade900,
@@ -95,7 +85,7 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // ✅ Animated bell icon
+                // Animated bell icon
                 AnimatedBuilder(
                   animation: _rotateController,
                   builder: (context, child) {
@@ -122,7 +112,7 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
                 
                 const SizedBox(height: 40),
                 
-                // ✅ Deadline text
+                // Deadline text
                 AnimatedBuilder(
                   animation: _pulseController,
                   builder: (context, child) {
@@ -131,9 +121,9 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
                       child: child,
                     );
                   },
-                  child: const Text(
-                    '🔔 DEADLINE!',
-                    style: TextStyle(
+                  child: Text(
+                    widget.locale.deadlineAlarm, // ✅ PAKAI LOCALE
+                    style: const TextStyle(
                       fontSize: 48,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -144,7 +134,7 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
                 
                 const SizedBox(height: 20),
                 
-                // ✅ Quest title
+                // Quest title
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 30),
                   child: Text(
@@ -162,7 +152,7 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
                 
                 const SizedBox(height: 15),
                 
-                // ✅ Deadline time
+                // Deadline time
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                   decoration: BoxDecoration(
@@ -182,7 +172,7 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
                 
                 const SizedBox(height: 60),
                 
-                // ✅ Sound indicator
+                // Sound indicator
                 if (_isPlaying)
                   AnimatedBuilder(
                     animation: _pulseController,
@@ -192,14 +182,14 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
                         child: child,
                       );
                     },
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.volume_up, color: Colors.white70, size: 30),
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
                         Text(
-                          'Alarm Berbunyi',
-                          style: TextStyle(
+                          widget.locale.isEnglish ? 'Alarm Ringing' : 'Alarm Berbunyi', // ✅ PAKAI LOCALE
+                          style: const TextStyle(
                             fontSize: 18,
                             color: Colors.white70,
                             fontWeight: FontWeight.w500,
@@ -211,7 +201,7 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
                 
                 const SizedBox(height: 40),
                 
-                // ✅ Stop button
+                // Stop button
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 40),
                   child: SizedBox(
@@ -227,9 +217,9 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
                         ),
                         elevation: 5,
                       ),
-                      child: const Text(
-                        'MATIKAN ALARM',
-                        style: TextStyle(
+                      child: Text(
+                        widget.locale.turnOffAlarm, // ✅ PAKAI LOCALE
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1,
@@ -241,7 +231,7 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
                 
                 const SizedBox(height: 20),
                 
-                // ✅ Hint text
+                // Hint text
                 AnimatedBuilder(
                   animation: _pulseController,
                   builder: (context, child) {
@@ -250,9 +240,9 @@ class _AlarmScreenState extends State<AlarmScreen> with TickerProviderStateMixin
                       child: child,
                     );
                   },
-                  child: const Text(
-                    'Tekan tombol untuk menghentikan alarm',
-                    style: TextStyle(
+                  child: Text(
+                    widget.locale.alarmHint, // ✅ PAKAI LOCALE
+                    style: const TextStyle(
                       fontSize: 14,
                       color: Colors.white70,
                     ),

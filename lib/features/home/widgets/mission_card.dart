@@ -1,9 +1,10 @@
-// lib/features/home/widgets/mission_card.dart
 import 'package:flutter/material.dart';
 import '../../../core/database/models/quest_model.dart';
+import '../../../core/localization/app_locale.dart';
 
 class MissionCard extends StatelessWidget {
   final Quest mission;
+  final AppLocale locale;
   final VoidCallback onDone;
   final VoidCallback onFail;
   final VoidCallback onEdit;
@@ -12,25 +13,27 @@ class MissionCard extends StatelessWidget {
   const MissionCard({
     super.key,
     required this.mission,
+    required this.locale,
     required this.onDone,
     required this.onFail,
     required this.onEdit,
     required this.onDelete,
   });
 
-  String formatDate(DateTime d) {
+  // ✅ TAMBAHKAN METHOD INI
+  String _formatDate(DateTime d) {
     return '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
   }
 
-  String formatTime(DateTime d) {
+  // ✅ TAMBAHKAN METHOD INI
+  String _formatTime(DateTime d) {
     return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ CEK: Apakah misi sudah expired?
     final bool isExpired = mission.isExpired;
-    final bool canToggle = !isExpired; // Hanya bisa toggle kalo belum expired
+    final bool canToggle = !isExpired;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -47,7 +50,6 @@ class MissionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ===== Title + Status =====
             Row(
               children: [
                 Expanded(
@@ -64,7 +66,6 @@ class MissionCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // ✅ Badge status dengan kondisi expired
                 if (isExpired && !mission.isCompleted)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -72,9 +73,9 @@ class MissionCard extends StatelessWidget {
                       color: Colors.grey.shade200,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      '⌛ KEDALUARSA',
-                      style: TextStyle(
+                    child: Text(
+                      locale.expiredBadge,
+                      style: const TextStyle(
                         color: Colors.grey,
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -88,9 +89,9 @@ class MissionCard extends StatelessWidget {
                       color: Colors.green.shade100,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Text(
-                      '✓ SELESAI',
-                      style: TextStyle(
+                    child: Text(
+                      locale.completedBadge,
+                      style: const TextStyle(
                         color: Colors.green,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -101,7 +102,6 @@ class MissionCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
 
-            // ===== Deadline Info =====
             Row(
               children: [
                 Icon(
@@ -110,46 +110,38 @@ class MissionCard extends StatelessWidget {
                   color: isExpired ? Colors.grey : Colors.grey,
                 ),
                 const SizedBox(width: 6),
+                // ✅ GUNAKAN METHOD _formatDate dan _formatTime
                 Text(
-                  'Deadline: ${formatDate(mission.deadline)} ${formatTime(mission.deadline)}',
+                  '${locale.deadlineLabel}: ${_formatDate(mission.deadline)} ${_formatTime(mission.deadline)}',
                   style: TextStyle(
                     fontSize: 13,
                     color: isExpired ? Colors.grey : Colors.grey,
-                    fontWeight: isExpired ? FontWeight.normal : FontWeight.normal,
                   ),
                 ),
-                if (isExpired) const SizedBox(width: 6),
-                if (isExpired) 
-                  Icon(Icons.notifications_off, size: 14, color: Colors.grey),
               ],
             ),
             const SizedBox(height: 12),
 
-            // ===== Action Buttons =====
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // Edit button (tetap bisa edit meskipun expired)
                 IconButton(
                   icon: Icon(Icons.edit, 
                     color: isExpired ? Colors.grey.shade400 : Colors.blue, 
                     size: 20),
                   onPressed: onEdit,
-                  tooltip: 'Edit',
+                  tooltip: locale.edit,
                 ),
-                // Delete button (tetap bisa delete)
                 IconButton(
                   icon: Icon(Icons.delete, 
                     color: isExpired ? Colors.grey.shade400 : Colors.red, 
                     size: 20),
                   onPressed: onDelete,
-                  tooltip: 'Hapus',
+                  tooltip: locale.delete,
                 ),
                 const SizedBox(width: 8),
                 
-                // ✅ AREA TOMBOL UTAMA - BERUBAH TOTAL KALO EXPIRED
                 if (isExpired && !mission.isCompleted)
-                  // TAMPILAN KALO SUDAH KEDALUARSA
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
@@ -157,13 +149,13 @@ class MissionCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.grey.shade300),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         Icon(Icons.block, size: 16, color: Colors.grey),
-                        SizedBox(width: 6),
+                        const SizedBox(width: 6),
                         Text(
-                          'SUDAH KEDALUARSA',
-                          style: TextStyle(
+                          locale.expiredBadge,
+                          style: const TextStyle(
                             color: Colors.grey,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -173,10 +165,8 @@ class MissionCard extends StatelessWidget {
                     ),
                   )
                 else
-                  // TAMPILAN NORMAL (BELUM EXPIRED)
                   Row(
                     children: [
-                      // Done button (Y)
                       ElevatedButton(
                         onPressed: canToggle && !mission.isCompleted ? onDone : null,
                         style: ElevatedButton.styleFrom(
@@ -191,7 +181,6 @@ class MissionCard extends StatelessWidget {
                         child: const Text('✓', style: TextStyle(fontSize: 18)),
                       ),
                       const SizedBox(width: 6),
-                      // Fail button (X)
                       ElevatedButton(
                         onPressed: canToggle && mission.isCompleted ? onFail : null,
                         style: ElevatedButton.styleFrom(

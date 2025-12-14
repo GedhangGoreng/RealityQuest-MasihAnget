@@ -26,6 +26,7 @@ Future<void> main() async {
   await Hive.openBox<Quest>('quests');
   await Hive.openBox<Reward>('rewards');
   await Hive.openBox<UserModel>('userBox');
+  await Hive.openBox<bool>('localeBox'); // ✅ TAMBAH INI
 
   // 2. Init Database Check (User default)
   final userBox = Hive.box<UserModel>('userBox');

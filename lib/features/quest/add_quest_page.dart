@@ -1,12 +1,19 @@
 // lib/features/quest/add_quest_page.dart
 import 'package:flutter/material.dart';
 import '../../core/database/models/quest_model.dart';
+import '../../core/localization/app_locale.dart'; // ✅ IMPORT
 
 class AddQuestPage extends StatefulWidget {
-  final Quest? initial; // kalau edit, isi Quest lama
+  final Quest? initial;
   final Function(Quest) onSave;
+  final AppLocale locale; // ✅ TAMBAH PARAMETER
 
-  const AddQuestPage({super.key, this.initial, required this.onSave});
+  const AddQuestPage({
+    super.key, 
+    this.initial, 
+    required this.onSave,
+    required this.locale, // ✅ REQUIRED
+  });
 
   @override
   State<AddQuestPage> createState() => _AddQuestPageState();
@@ -56,14 +63,16 @@ class _AddQuestPageState extends State<AddQuestPage> {
   void save() {
     final title = titleController.text.trim();
     if (title.isEmpty) {
-      // ✅ Validasi: jangan simpan kalau title kosong
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nama misi tidak boleh kosong!')),
+        SnackBar(
+          content: Text(widget.locale.isEnglish 
+              ? 'Mission name cannot be empty!' 
+              : 'Nama misi tidak boleh kosong!'),
+        ),
       );
       return;
     }
 
-    // ✅ Gabungkan tanggal + waktu jadi DateTime lengkap
     final deadline = chosenDate != null && chosenTime != null
         ? DateTime(
             chosenDate!.year,
@@ -74,12 +83,11 @@ class _AddQuestPageState extends State<AddQuestPage> {
           )
         : chosenDate ?? DateTime.now().add(const Duration(days: 1));
 
-    // ✅ Buat Quest object dengan rewardCoins = 1
     final quest = Quest(
       title: title,
       isCompleted: widget.initial?.isCompleted ?? false,
       deadline: deadline,
-      rewardCoins: 1, // ✅ PENTING: Set reward coins!
+      rewardCoins: 1,
     );
 
     widget.onSave(quest);
@@ -90,7 +98,9 @@ class _AddQuestPageState extends State<AddQuestPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.initial == null ? 'Tambah Misi' : 'Edit Misi'),
+        title: Text(widget.initial == null 
+            ? widget.locale.addQuestTitle 
+            : widget.locale.editQuestTitle),
         backgroundColor: Colors.purple,
         foregroundColor: Colors.white,
       ),
@@ -99,21 +109,21 @@ class _AddQuestPageState extends State<AddQuestPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ===== Input Nama Misi =====
+            // ===== NAMA MISI =====
             TextField(
               controller: titleController,
-              decoration: const InputDecoration(
-                labelText: 'Nama Misi',
-                hintText: 'Masukkan nama misi...',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: widget.locale.missionName,
+                hintText: widget.locale.missionHint,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 20),
 
-            // ===== Pilih Tanggal =====
-            const Text(
-              'Tanggal Deadline',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            // ===== TANGGAL =====
+            Text(
+              widget.locale.deadlineDate,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 8),
             InkWell(
@@ -130,7 +140,7 @@ class _AddQuestPageState extends State<AddQuestPage> {
                     const SizedBox(width: 12),
                     Text(
                       chosenDate == null
-                          ? 'Pilih Tanggal'
+                          ? widget.locale.selectDate
                           : '${chosenDate!.day}-${chosenDate!.month}-${chosenDate!.year}',
                       style: TextStyle(
                         fontSize: 16,
@@ -143,10 +153,10 @@ class _AddQuestPageState extends State<AddQuestPage> {
             ),
             const SizedBox(height: 20),
 
-            // ===== Pilih Waktu =====
-            const Text(
-              'Waktu Deadline',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            // ===== WAKTU =====
+            Text(
+              widget.locale.deadlineTime,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 8),
             InkWell(
@@ -163,7 +173,7 @@ class _AddQuestPageState extends State<AddQuestPage> {
                     const SizedBox(width: 12),
                     Text(
                       chosenTime == null
-                          ? 'Pilih Waktu'
+                          ? widget.locale.selectTime
                           : '${chosenTime!.hour.toString().padLeft(2, '0')}:${chosenTime!.minute.toString().padLeft(2, '0')}',
                       style: TextStyle(
                         fontSize: 16,
@@ -176,10 +186,10 @@ class _AddQuestPageState extends State<AddQuestPage> {
             ),
             const SizedBox(height: 20),
 
-            // ===== Reward (Read-Only) =====
-            const Text(
-              'Reward',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            // ===== REWARD =====
+            Text(
+              widget.locale.reward,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 8),
             Container(
@@ -202,7 +212,7 @@ class _AddQuestPageState extends State<AddQuestPage> {
             ),
             const SizedBox(height: 30),
 
-            // ===== Tombol Simpan =====
+            // ===== SIMPAN =====
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -215,9 +225,9 @@ class _AddQuestPageState extends State<AddQuestPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text(
-                  'Simpan Misi',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                child: Text(
+                  widget.locale.saveMission,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
