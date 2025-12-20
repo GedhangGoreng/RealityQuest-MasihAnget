@@ -19,6 +19,7 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
   static const int _rewardCount = 5;
   final int _zonkIndex = 0;
   final SpinLogic _logic = SpinLogic();
+  final HiveService _hive = HiveService();
 
   final List<TextEditingController> _controllers =
       List.generate(_rewardCount, (index) => TextEditingController());
@@ -30,7 +31,8 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
   double _previousAngle = 0;
   bool _isSpinning = false;
   int _currentCoins = 0;
-  late AppLocale _locale;
+  
+  AppLocale? _locale;
 
   final List<Color> _wheelColors = const [
     Colors.orange,
@@ -56,18 +58,18 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
     final isEnglish = await LocalePreference.getIsEnglish();
     setState(() {
       _locale = AppLocale(isEnglish);
-      _rewards[_zonkIndex] = _locale.zonkReward;
-      if (_controllers[_zonkIndex].text != _locale.zonkReward) {
-        _controllers[_zonkIndex].text = _locale.zonkReward;
+      _rewards[_zonkIndex] = _locale!.zonkReward;
+      if (_controllers[_zonkIndex].text != _locale!.zonkReward) {
+        _controllers[_zonkIndex].text = _locale!.zonkReward;
       }
     });
     
-    // Load rewards SETELAH locale siap
-    _loadRewardsFromHive();
+    // Load rewards dari Hive + gambar (jika ada)
+    await _loadRewardsFromHive();
   }
 
   Future<void> _loadCurrentCoins() async {
-    final user = await HiveService().getUser();
+    final user = await _hive.getUser();
     if (mounted) {
       setState(() {
         _currentCoins = user.totalCoins;
@@ -75,46 +77,47 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
     }
   }
 
+  // ========== FIX: Load rewards dari Hive ==========
   Future<void> _loadRewardsFromHive() async {
     final rewards = await _logic.getRewards();
-    if (rewards.isNotEmpty) {
+    
+    // Jika Hive kosong, isi dengan default
+    if (rewards.isEmpty) {
+      for (int i = 0; i < _rewardCount; i++) {
+        String defaultName = (i == _zonkIndex)
+            ? _locale!.zonkReward
+            : (_locale!.isEnglish ? "Reward ${i+1}" : "Hadiah ${i+1}");
+        await _logic.addReward(defaultName, value: i == _zonkIndex ? 0 : 1);
+      }
+      // Load ulang setelah diisi default
+      await _refreshRewardsFromHive();
+    } else {
+      await _refreshRewardsFromHive();
+    }
+  }
+
+  // Refresh state dari data Hive
+  Future<void> _refreshRewardsFromHive() async {
+    final rewards = await _logic.getRewards();
+    if (mounted) {
       setState(() {
         for (int i = 0; i < _rewardCount && i < rewards.length; i++) {
-          // ✅ TRANSLASI DARI HIVE KE BAHASA SEKARANG
           String rewardName = rewards[i].name;
           
-          // Handle ZONK khusus
-          if (rewardName.contains("ZONK") || rewardName == _locale.zonkReward) {
-            _rewards[i] = _locale.zonkReward;
-            _controllers[i].text = _locale.zonkReward;
+          // Handle ZONK text localization
+          if (rewardName.contains("ZONK") || rewardName == _locale!.zonkReward) {
+            _rewards[i] = _locale!.zonkReward;
+            _controllers[i].text = _locale!.zonkReward;
           } 
-          // Handle "Hadiah X" -> "Reward X" atau sebaliknya
-          else if (rewardName.startsWith("Hadiah") || rewardName.startsWith("Reward")) {
-            if (_locale.isEnglish && rewardName.startsWith("Hadiah")) {
+          else {
+            // Pastikan teks sesuai locale
+            if (_locale!.isEnglish && rewardName.startsWith("Hadiah")) {
               _rewards[i] = rewardName.replaceFirst("Hadiah", "Reward");
-            } else if (!_locale.isEnglish && rewardName.startsWith("Reward")) {
+            } else if (!_locale!.isEnglish && rewardName.startsWith("Reward")) {
               _rewards[i] = rewardName.replaceFirst("Reward", "Hadiah");
             } else {
               _rewards[i] = rewardName;
             }
-            _controllers[i].text = _rewards[i];
-          }
-          // Default case
-          else {
-            _rewards[i] = rewardName;
-            _controllers[i].text = rewardName;
-          }
-        }
-      });
-    } else {
-      // Jika Hive kosong, isi dengan default
-      setState(() {
-        for (int i = 0; i < _rewardCount; i++) {
-          if (i == _zonkIndex) {
-            _rewards[i] = _locale.zonkReward;
-            _controllers[i].text = _locale.zonkReward;
-          } else {
-            _rewards[i] = _locale.isEnglish ? "Reward ${i+1}" : "Hadiah ${i+1}";
             _controllers[i].text = _rewards[i];
           }
         }
@@ -138,30 +141,60 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
       setState(() {
         _images[index] = File(picked.path);
       });
+      // ========== FIX: Simpan perubahan teks ke Hive ==========
+      await _saveSingleRewardToHive(index);
     }
   }
 
-  Future<void> _saveRewardsToHive() async {
-    // Simpan dengan nama sesuai bahasa SAAT INI
-    for (int i = 0; i < _rewards.length; i++) {
+  // ========== FIX: Simpan SATU reward ke Hive ==========
+  Future<void> _saveSingleRewardToHive(int index) async {
+    if (index < 0 || index >= _rewards.length) return;
+    
+    // Ambil semua reward dari Hive
+    final rewards = await _logic.getRewards();
+    
+    if (index < rewards.length) {
+      // Update reward yang sudah ada
+      rewards[index].name = _rewards[index];
+      await rewards[index].save();
+    } else {
+      // Jika belum ada, tambah baru
       await _logic.addReward(
-        _rewards[i],
-        value: i == _zonkIndex ? 0 : 1,
+        _rewards[index],
+        value: index == _zonkIndex ? 0 : 1,
       );
+    }
+  }
+
+  // ========== FIX: Simpan SEMUA reward ke Hive ==========
+  Future<void> _saveAllRewardsToHive() async {
+    final rewards = await _logic.getRewards();
+    
+    for (int i = 0; i < _rewards.length; i++) {
+      if (i < rewards.length) {
+        // Update existing
+        rewards[i].name = _rewards[i];
+        await rewards[i].save();
+      } else {
+        // Add new
+        await _logic.addReward(
+          _rewards[i],
+          value: i == _zonkIndex ? 0 : 1,
+        );
+      }
     }
   }
 
   Future<void> _startSpin() async {
     if (_isSpinning) return;
 
-    final hive = HiveService();
-    final user = await hive.getUser();
+    final user = await _hive.getUser();
     
     if (user.totalCoins < 1) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_locale.isEnglish 
+          content: Text(_locale!.isEnglish 
               ? 'Not enough coins! Complete missions first.' 
               : 'Koin tidak cukup! Selesaikan misi dulu.'),
           backgroundColor: Colors.red,
@@ -171,9 +204,9 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
       return;
     }
 
-    await hive.addCoins(-1);
+    await _hive.addCoins(-1);
     await _loadCurrentCoins();
-    await _saveRewardsToHive();
+    await _saveAllRewardsToHive(); // Simpan sebelum spin
     setState(() => _isSpinning = true);
 
     const double minRotations = 5;
@@ -209,7 +242,7 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          _locale.congratulations,
+          _locale!.congratulations,
           textAlign: TextAlign.center,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
@@ -217,7 +250,7 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              _locale.youGot,
+              _locale!.youGot,
               style: TextStyle(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 8),
@@ -244,7 +277,7 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: Text(_locale.ok),
+              child: Text(_locale!.ok),
             ),
           ),
         ],
@@ -329,20 +362,22 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
                       filled: true,
                       fillColor: isZonk ? Colors.grey.shade200 : Colors.white,
                       labelText: isZonk 
-                          ? (_locale.isEnglish ? "**FIXED REWARD (ZONK)**" : "**HADIAH PATEN (ZONK)**")
-                          : "${_locale.rewardItem} ${index + 1}",
+                          ? (_locale!.isEnglish ? "**FIXED REWARD (ZONK)**" : "**HADIAH PATEN (ZONK)**")
+                          : "${_locale!.rewardItem} ${index + 1}",
                       labelStyle: const TextStyle(color: Colors.grey),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: BorderSide.none,
                       ),
                     ),
-                    onChanged: (value) {
+                    onChanged: (value) async {
                       setState(() {
                         _rewards[index] = value.isEmpty 
-                            ? (_locale.isEnglish ? "Reward ${index + 1}" : "Hadiah ${index + 1}") 
+                            ? (_locale!.isEnglish ? "Reward ${index + 1}" : "Hadiah ${index + 1}") 
                             : value;
                       });
+                      // ========== FIX: Auto-save ke Hive setiap teks berubah ==========
+                      await _saveSingleRewardToHive(index);
                     },
                   ),
                 ),
@@ -373,13 +408,22 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
+    if (_locale == null) {
+      return Scaffold(
+        backgroundColor: Colors.blue.shade800,
+        body: const Center(
+          child: CircularProgressIndicator(color: Colors.white),
+        ),
+      );
+    }
+
     final size = MediaQuery.of(context).size.width * 0.8;
 
     return Scaffold(
       backgroundColor: Colors.blue.shade800,
       appBar: AppBar(
         backgroundColor: Colors.blue.shade900,
-        title: Text(_locale.spinAndWin, style: const TextStyle(color: Colors.white)),
+        title: Text(_locale!.spinAndWin, style: const TextStyle(color: Colors.white)),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -402,15 +446,15 @@ class _SpinPageState extends State<SpinPage> with SingleTickerProviderStateMixin
               ),
               child: Text(
                 _isSpinning
-                    ? (_locale.isEnglish ? "Spinning..." : "Memutar...")
-                    : "${_locale.spinReward} (${_locale.isEnglish ? 'Coins left' : 'Sisa Koin'}: $_currentCoins)",
+                    ? (_locale!.isEnglish ? "Spinning..." : "Memutar...")
+                    : "${_locale!.spinReward} (${_locale!.isEnglish ? 'Coins left' : 'Sisa Koin'}: $_currentCoins)",
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
             
             const SizedBox(height: 30),
             Text(
-              _locale.setRewards,
+              _locale!.setRewards,
               style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
