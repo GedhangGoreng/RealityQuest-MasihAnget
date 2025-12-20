@@ -84,9 +84,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  // ✅ VERSI FIX DENGAN UPDATE BY KEY
   void openEditPage(int index) {
     if (_locale == null) return;
     final questProvider = Provider.of<QuestProvider>(context, listen: false);
+    // Kita ambil objek quest lama berdasarkan index list yang di-tap
     final quest = questProvider.quests[index];
 
     Navigator.of(context).push(
@@ -95,13 +97,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           initial: quest,
           locale: _locale!,
           onSave: (newQuest) async {
-            final oldIndex = questProvider.allQuests.indexWhere(
-              (q) => q.key == quest.key || q.title == quest.title
+            // ✅ PAKAI UPDATE BY KEY (SOLUSI PROFESIONAL)
+            // Tidak perlu delete & add lagi, langsung update ke key aslinya
+            await questProvider.updateQuestByKey(
+              questKey: quest.key, // Hive key sebagai unique identifier
+              newQuest: newQuest,
             );
-            if (oldIndex != -1) {
-              await questProvider.deleteQuest(oldIndex);
-            }
-            await questProvider.addQuest(newQuest);
           },
         ),
       ),
@@ -225,7 +226,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             children: [
               const CircularProgressIndicator(color: Colors.white),
               const SizedBox(height: 20),
-              Text(
+              const Text(
                 'Loading RealityQuest...',
                 style: TextStyle(
                   color: Colors.white,

@@ -68,10 +68,28 @@ class NotificationService {
     String questTitle,
     DateTime deadline,
   ) async {
+    final now = DateTime.now();
+    final timeDiff = deadline.difference(now);
+    
+    // ✅ BUAT HEADER YANG LEBIH SPESIFIK
+    String title;
+    String body;
+    
+    if (timeDiff.inMinutes <= 0) {
+      title = '⚠️ Deadline Telah Tiba!';
+      body = 'Misi "$questTitle" deadline sekarang!';
+    } else if (timeDiff.inMinutes <= 5) {
+      title = '⚠️ Deadline Sangat Dekat!';
+      body = 'Misi "$questTitle" deadline dalam ${timeDiff.inMinutes} menit!';
+    } else {
+      title = '⚠️ Deadline Dekat!';
+      body = 'Misi "$questTitle" deadline kurang dari 30 menit!';
+    }
+    
     await _notifications.show(
       questId * 100 + 1,
-      '⚠️ Deadline Dekat!',
-      'Misi "$questTitle" deadline kurang dari 30 menit!',
+      title,
+      body,
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'quest_immediate',
@@ -84,7 +102,7 @@ class NotificationService {
         ),
       ),
     );
-    print('✅ Immediate 30min warning shown!');
+    print('✅ Immediate warning shown! (${timeDiff.inMinutes}m until deadline)');
   }
 
   /// ✅ 2. SCHEDULE NOTIF 30 MENIT SEBELUM DEADLINE
@@ -128,11 +146,39 @@ class NotificationService {
     String questTitle,
     DateTime deadline,
   ) async {
-    if (deadline.isBefore(DateTime.now())) {
-      print('⚠️ Deadline skipped (already passed)');
+    final now = DateTime.now();
+    
+    // ✅ KALAU DEADLINE SUDAH LEWAT ATAU SAMA DENGAN SEKARANG
+    if (!deadline.isAfter(now)) {
+      print('⚠️ Deadline notification skipped (deadline already passed or is now)');
+      return;
+    }
+    
+    // ✅ KALAU DEADLINE ≤ 1 MENIT DARI SEKARANG, SHOW LANGSUNG
+    final timeDiff = deadline.difference(now);
+    if (timeDiff.inSeconds <= 60) {
+      print('📌 Deadline ≤ 1 minute, showing immediate notification');
+      await _notifications.show(
+        questId * 100 + 3,
+        '🔔 DEADLINE!',
+        'Misi "$questTitle" deadline dalam ${timeDiff.inSeconds} detik!',
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'quest_deadline',
+            'Deadline Alarm',
+            channelDescription: 'Notifikasi saat deadline tiba',
+            importance: Importance.max,
+            priority: Priority.max,
+            playSound: true,
+            enableVibration: true,
+            ongoing: true,
+          ),
+        ),
+      );
       return;
     }
 
+    // ✅ NORMAL SCHEDULING
     await _notifications.zonedSchedule(
       questId * 100 + 3,
       '🔔 DEADLINE!',
@@ -156,7 +202,7 @@ class NotificationService {
     print('✅ Deadline notification scheduled at $deadline');
   }
 
-  /// ✅ 4. LOGIKA UTAMA
+  /// ✅ 4. LOGIKA UTAMA (IMPROVED)
   Future<void> scheduleAllForQuest(
     int questId,
     String questTitle,
@@ -165,19 +211,52 @@ class NotificationService {
     final now = DateTime.now();
     final timeDiff = deadline.difference(now);
     final minutesDiff = timeDiff.inMinutes;
+    final secondsDiff = timeDiff.inSeconds;
     
     print('\n🚀 SMART SCHEDULING QUEST: $questTitle');
     print('   Deadline: $deadline');
     print('   Time diff: ${timeDiff.inHours}h ${minutesDiff % 60}m');
-    print('   Minutes diff: $minutesDiff minutes\n');
+    print('   Seconds diff: $secondsDiff seconds\n');
 
-    // ✅ PASTIKAN DEADLINE NOTIF SELALU DI-SCHEDULE
-    await scheduleDeadlineNotification(questId, questTitle, deadline);
+    // ✅ JIKA DEADLINE SUDAH LEWAT > 1 MENIT → SKIP SEMUA
+    if (secondsDiff < -60) {
+      print('❌ Deadline sudah lewat > 1 menit, skipping all notifications');
+      return;
+    }
+    
+    // ✅ JIKA DEADLINE SANGAT DEKAT (±60 detik) → SINGLE NOTIF SAJA
+    if (secondsDiff.abs() <= 60) {
+      print('📌 Deadline sangat dekat (±1m) → Show single immediate notification');
+      await _notifications.show(
+        questId * 100 + 3,
+        secondsDiff <= 0 ? '🔔 DEADLINE SEKARANG!' : '🔔 DEADLINE SANGAT DEKAT!',
+        'Misi "$questTitle" ${secondsDiff <= 0 ? 'deadline sekarang!' : 'deadline dalam ${secondsDiff} detik!'}',
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'quest_deadline',
+            'Deadline Alarm',
+            channelDescription: 'Notifikasi saat deadline tiba',
+            importance: Importance.max,
+            priority: Priority.max,
+            playSound: true,
+            enableVibration: true,
+            ongoing: true,
+          ),
+        ),
+      );
+      print('✅ Single immediate notification shown');
+      return; // ← STOP DI SINI, jangan lanjut scheduling
+    }
+
+    // ✅ PASTIKAN DEADLINE NOTIF SELALU DI-SCHEDULE (kalo deadline belum lewat)
+    if (deadline.isAfter(now)) {
+      await scheduleDeadlineNotification(questId, questTitle, deadline);
+    }
 
     // ✅ LOGIKA UNTUK 30 MENIT:
     if (minutesDiff <= 30 && minutesDiff > 0) {
-      // CASE A: Deadline < 30 menit dari sekarang → SHOW LANGSUNG
-      print('📌 CASE A: Deadline < 30m → Show immediate warning');
+      // CASE A: Deadline ≤ 30 menit dari sekarang → SHOW LANGSUNG
+      print('📌 CASE A: Deadline ≤ 30m → Show immediate warning');
       await showImmediate30MinuteWarning(questId, questTitle, deadline);
     } else if (minutesDiff > 30) {
       // CASE B: Deadline > 30 menit → SCHEDULE untuk 30 menit sebelum deadline
@@ -185,7 +264,7 @@ class NotificationService {
       await schedule30MinuteReminder(questId, questTitle, deadline);
     } else {
       // CASE C: Deadline sudah lewat → Skip
-      print('📌 CASE C: Deadline already passed → Skip');
+      print('📌 CASE C: Deadline already passed → Skip 30m reminder');
     }
 
     print('✅ All notifications scheduled for quest: $questTitle\n');

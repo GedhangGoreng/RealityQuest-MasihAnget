@@ -170,6 +170,79 @@ class QuestProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// ✅ NEW METHOD: Update quest by Hive key (robust, no duplicate)
+  /// FIX 3 - Untuk menghilangkan bug duplikat saat edit
+  Future<void> updateQuestByKey({
+    required int? questKey,
+    required Quest newQuest,
+  }) async {
+    if (questKey == null) {
+      if (kDebugMode) {
+        print('⚠️ Quest key is null, falling back to add');
+      }
+      await addQuest(newQuest);
+      return;
+    }
+    
+    // Cari quest lama berdasarkan Hive key
+    final oldIndex = _quests.indexWhere((q) => q.key == questKey);
+    if (oldIndex == -1) {
+      if (kDebugMode) {
+        print('⚠️ Old quest not found with key $questKey, adding new');
+      }
+      await addQuest(newQuest);
+      return;
+    }
+    
+    final oldQuest = _quests[oldIndex];
+    
+    if (kDebugMode) {
+      print('🔄 Updating quest (key: $questKey): "${oldQuest.title}" → "${newQuest.title}"');
+    }
+    
+    // Cancel notifikasi lama
+    await _notif.cancelAllForQuest(oldQuest.uniqueId);
+    
+    // Delete quest lama dari Hive
+    await _hive.deleteQuest(oldIndex);
+    
+    // Remove dari list lokal
+    _quests.removeAt(oldIndex);
+    
+    // Add quest baru ke Hive
+    await _hive.addQuest(newQuest);
+    
+    // Tambah ke list lokal
+    _quests.add(newQuest);
+    
+    // Schedule notifikasi baru
+    await _notif.scheduleAllForQuest(
+      newQuest.uniqueId,
+      newQuest.title,
+      newQuest.deadline,
+    );
+    
+    // Cek status expired
+    _checkForNewExpiredQuests();
+    
+    // Update UI
+    notifyListeners();
+    
+    if (kDebugMode) {
+      print('✅ Quest updated successfully (key: $questKey)');
+    }
+  }
+
+  /// ✅ HELPER: Get quest by Hive key
+  Quest? getQuestByKey(int? key) {
+    if (key == null) return null;
+    try {
+      return _quests.firstWhere((q) => q.key == key);
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<void> clearAll() async {
     await _notif.cancelAll();
     await _hive.clearQuests();
